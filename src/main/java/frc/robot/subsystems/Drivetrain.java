@@ -9,14 +9,19 @@ import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveRequest;
+import com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType;
+import com.google.gson.FieldAttributes;
 
+import choreo.trajectory.SwerveSample;
 import edu.wpi.first.math.Matrix;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.Timer;
@@ -42,7 +47,12 @@ public class Drivetrain extends TunerSwerveDrivetrain implements Subsystem {
     /* Keep track if we've ever applied the operator perspective before or not */
     private boolean m_hasAppliedOperatorPerspective = false;
 
-    private SwerveRequest swerveRequest = null;
+    private final SwerveRequest.FieldCentric swerveRequest = new SwerveRequest.FieldCentric();
+    private final PIDController choreoXController = new PIDController(10, 0, 0);
+    private final PIDController choreoYController = new PIDController(10, 0, 0);
+    private final PIDController choreoOmegaController = new PIDController(7.5, 0, 0);
+
+    private Field2d field = new Field2d();
 
     /* Swerve requests to apply during SysId characterization */
     private final SwerveRequest.SysIdSwerveTranslation m_translationCharacterization = new SwerveRequest.SysIdSwerveTranslation();
@@ -126,6 +136,7 @@ public class Drivetrain extends TunerSwerveDrivetrain implements Subsystem {
         SwerveModuleConstants<?, ?, ?>... modules
     ) {
         super(drivetrainConstants, modules);
+        choreoOmegaController.enableContinuousInput(-Math.PI, Math.PI);
         if (Utils.isSimulation()) {
             startSimThread();
         }
@@ -150,6 +161,7 @@ public class Drivetrain extends TunerSwerveDrivetrain implements Subsystem {
         SwerveModuleConstants<?, ?, ?>... modules
     ) {
         super(drivetrainConstants, odometryUpdateFrequency, modules);
+        choreoOmegaController.enableContinuousInput(-Math.PI, Math.PI);
         if (Utils.isSimulation()) {
             startSimThread();
         }
@@ -182,6 +194,7 @@ public class Drivetrain extends TunerSwerveDrivetrain implements Subsystem {
         SwerveModuleConstants<?, ?, ?>... modules
     ) {
         super(drivetrainConstants, odometryUpdateFrequency, odometryStandardDeviation, visionStandardDeviation, modules);
+        choreoOmegaController.enableContinuousInput(-Math.PI, Math.PI);
         if (Utils.isSimulation()) {
             startSimThread();
         }
@@ -238,10 +251,29 @@ public class Drivetrain extends TunerSwerveDrivetrain implements Subsystem {
                 m_hasAppliedOperatorPerspective = true;
             });
         }
+
+        field.setRobotPose(getPose());
+    }
+
+    public Field2d getField() {
+        return field;
     }
 
     public void addVisionMeasurement(Pose2d estimatedPose) {
         this.addVisionMeasurement(estimatedPose, Utils.getCurrentTimeSeconds());
+    }
+
+    public void followTrajectory(SwerveSample sample) {
+        Pose2d currentPose = getState().Pose;
+        this.setControl(swerveRequest.withVelocityX(sample.vx + choreoXController.calculate(currentPose.getX(), sample.x))
+                                    .withVelocityY(sample.vy + choreoYController.calculate(currentPose.getY(), sample.y))
+                                    .withRotationalRate(sample.omega + choreoOmegaController.calculate(currentPose.getRotation().getRadians(), sample.heading))
+        );
+        field.getObject("path").setPose(sample.getPose());
+    }
+
+    public Pose2d getPose() {
+        return getState().Pose;
     }
 
     private void startSimThread() {

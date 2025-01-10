@@ -7,10 +7,14 @@ package frc.robot;
 import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
+
+import choreo.auto.AutoFactory;
+
 import com.ctre.phoenix6.swerve.SwerveRequest;
 
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
@@ -35,10 +39,25 @@ public class RobotContainer {
 
     private final CommandXboxController joystick = new CommandXboxController(0);
 
+    private AutoFactory autoFactory;
+
     public final static Drivetrain drivetrain = TunerConstants.createDrivetrain();
 
     public RobotContainer() {
         configureBindings();
+        configureChoreo();
+
+        SmartDashboard.putData(drivetrain.getField());
+    }
+
+    private void configureChoreo() {
+        autoFactory = new AutoFactory(
+            drivetrain::getPose,
+            drivetrain::resetPose, 
+            drivetrain::followTrajectory,
+            true,
+            drivetrain
+        );
     }
 
     private void configureBindings() {
@@ -74,6 +93,7 @@ public class RobotContainer {
     }
 
     public Command getAutonomousCommand() {
+        
         return Commands.print("No autonomous command configured");
     }
 
