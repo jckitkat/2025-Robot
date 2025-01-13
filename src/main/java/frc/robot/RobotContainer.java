@@ -95,8 +95,7 @@ public class RobotContainer {
     }
 
     public Command getAutonomousCommand() {
-        
-        return Commands.print("No autonomous command configured");
+        return autoFactory.trajectoryCmd("Test Path");
     }
 
     public static Drivetrain getDrivetrain() {
